@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>دردشة شبيهة واتساب</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+body{margin:0;font-family:sans-serif;background:#ece5dd;}
+/* تسجيل دخول */
+.login{display:flex;justify-content:center;align-items:center;height:100vh;width:100%;flex-direction:column;background:#25D366;}
+.login-box{background:white;padding:30px;border-radius:15px;box-shadow:0 0 15px rgba(0,0,0,.3);width:320px;text-align:center;}
+.login-box input,.login-box button{display:block;margin:10px auto;padding:10px;width:90%;border-radius:25px;border:1px solid #ccc;}
+.login-box button{background:#25D366;color:white;font-weight:bold;cursor:pointer;border:none;}
+.login-box h2{margin-bottom:20px;color:#075E54;}
+/* المحادثات */
+.chat{display:none;flex-direction:column;height:100vh;width:100%;}
+.topbar{background:#075E54;color:white;padding:10px;display:flex;justify-content:space-between;align-items:center;height:60px;}
+.topbar-left{display:flex;align-items:center;gap:10px;}
+.topbar-left img{width:40px;height:40px;border-radius:50%;}
+.topbar-left span{font-weight:bold;font-size:18px;}
+.topbar-right button{background:none;border:none;color:white;font-size:20px;cursor:pointer;margin-left:10px;}
+.chat-list{flex:1;overflow-y:auto;width:100%;}
+.chat-item{display:flex;align-items:center;padding:10px;border-bottom:1px solid #ddd;cursor:pointer;height:70px;position:relative;}
+.chat-item img{width:50px;height:50px;border-radius:50%;margin-left:10px;}
+.chat-item .info{flex:1;display:flex;flex-direction:column;justify-content:center;}
+.chat-item .info b{font-size:16px;}
+.chat-item .info small{color:#555;font-size:14px;}
+.chat-item .badge{position:absolute;top:15px;right:10px;background:#25D366;color:white;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;}
+.fab{position:fixed;bottom:20px;right:20px;width:60px;height:60px;background:#25D366;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;box-shadow:0 4px 6px rgba(0,0,0,.3);}
+/* نافذة البحث */
+.popup,.profile-popup{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px;border-radius:15px;box-shadow:0 0 15px rgba(0,0,0,.3);display:none;width:320px;max-height:400px;overflow-y:auto;}
+.user-card{border:1px solid #ccc;margin:10px;padding:10px;border-radius:10px;text-align:center;}
+.user-card img{width:50px;height:50px;border-radius:50%;margin-bottom:5px;}
+.profile-popup h3{margin:0 0 10px 0;}
+/* المحادثة */
+.conversation{display:none;flex-direction:column;height:100vh;width:100%;}
+.conversation .topbar{justify-content:flex-start;gap:10px;position:relative;}
+.conversation .topbar button.backBtn{position:absolute;left:10px;top:15px;background:#25D366;padding:5px 8px;border-radius:50%;border:none;color:white;cursor:pointer;}
+.messages{flex:1;overflow-y:auto;padding:10px;width:100%;display:flex;flex-direction:column;}
+.message{max-width:70%;margin:5px 0;padding:10px;border-radius:16px;position:relative;word-break: break-word;}
+.message.sent{background:#dcf8c6;margin-left:auto;}
+.message.received{background:white;margin-right:auto;border:1px solid #ddd;}
+.message small{display:block;font-size:10px;color:#555;margin-top:5px;text-align:right;}
+.input-bar{display:flex;padding:5px 10px;background:white;align-items:center;gap:10px;border-top:1px solid #ccc;height:50px;}
+.input-bar input{flex:1;padding:10px;border-radius:25px;border:1px solid #ccc;}
+.input-bar button{background:#25D366;color:white;border:none;padding:10px;border-radius:50%;cursor:pointer;font-size:18px;}
+.input-bar button.mic{background:#075E54;}
+</style>
+</head>
+<body>
+
+<!-- تسجيل -->
+<div class="login" id="loginDiv">
+  <div class="login-box">
+    <h2>تسجيل / دخول</h2>
+    <input id="name" placeholder="الاسم">
+    <input id="email" placeholder="البريد">
+    <input id="password" placeholder="كلمة المرور" type="password">
+    <input id="profilePic" placeholder="رابط الصورة">
+    <button id="registerBtn">تسجيل حساب</button>
+    <button id="loginBtn">تسجيل دخول</button>
+  </div>
+</div>
+
+<!-- شاشة المحادثات -->
+<div class="chat" id="chatDiv">
+  <div class="topbar">
+    <div class="topbar-left">
+      <img id="myPhoto" src="https://via.placeholder.com/40">
+      <span id="myName">مستخدم</span>
+    </div>
+    <div class="topbar-right">
+      <button onclick="openProfilePopup()"><i class="fa fa-user"></i></button>
+      <button onclick="openSettings()"><i class="fa fa-ellipsis-v"></i></button>
+    </div>
+  </div>
+  <div class="chat-list" id="chatList"></div>
+  <div class="fab" id="searchBtn"><i class="fa fa-search"></i></div>
+</div>
+
+<!-- نافذة البحث -->
+<div class="popup" id="searchPopup">
+  <center>
+    <div id="loadingSpinner" style="margin:20px;display:none;">
+      <i class="fa fa-spinner fa-spin fa-3x" style="color:#075E54;"></i>
+      <p>جاري البحث...</p>
+    </div>
+    <input id="searchEmail" placeholder="أدخل البريد الإلكتروني" style="width:80%;padding:8px;margin-bottom:10px;border-radius:5px;border:1px solid #ccc;">
+    <button onclick="searchUser()">بحث</button>
+    <div id="popupResults"></div>
+    <button onclick="closeSearchPopup()">إغلاق</button>
+  </center>
+</div>
+
+<!-- نافذة الملف الشخصي -->
+<div class="profile-popup" id="profilePopup">
+  <h3>تعديل الملف الشخصي</h3>
+  <input id="newName" placeholder="اسم جديد">
+  <input id="newPhoto" placeholder="رابط صورة جديدة">
+  <button onclick="saveProfile()">حفظ</button>
+  <button onclick="closeProfilePopup()">إغلاق</button>
+</div>
+
+<!-- شاشة المحادثة الفردية -->
+<div class="conversation" id="conversationDiv">
+  <div class="topbar">
+    <button class="backBtn" onclick="backToChat()"><i class="fa fa-arrow-right"></i></button>
+    <img id="chatUserPhoto" src="https://via.placeholder.com/40">
+    <span id="chatUserName">المستخدم</span>
+    <span id="chatUserStatus" style="font-size:12px;color:#fff;margin-left:10px;">نشط الآن</span>
+  </div>
+  <div class="messages" id="messagesDiv"></div>
+  <div class="input-bar">
+    <button class="mic" id="micBtn"><i class="fa fa-microphone"></i></button>
+    <input id="messageInput" placeholder="اكتب رسالة...">
+    <button id="sendBtn"><i class="fa fa-paper-plane"></i></button>
+  </div>
+</div>
+
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {getAuth,createUserWithEmailAndPassword,signInWithEmailAndPassword} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import {getFirestore,doc,setDoc,getDoc,collection,getDocs,updateDoc,query,where,serverTimestamp,addDoc,onSnapshot,orderBy} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import {getStorage,ref,uploadBytes,getDownloadURL} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDdPSV6OSPzqgdC5xWWfOCH2msTefFyoig",
+  authDomain: "uusuf-535ce.firebaseapp.com",
+  projectId: "uusuf-535ce",
+  storageBucket: "uusuf-535ce.appspot.com",
+  messagingSenderId: "1091306629647",
+  appId: "1:1091306629647:web:f9b1bdac9d179260f4117a",
+  measurementId: "G-KL6PGCZ04P"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const storage = getStorage(app);
+
+/* المتغيرات */
+const registerBtn = document.getElementById("registerBtn");
+const loginBtn = document.getElementById("loginBtn");
+const searchBtn = document.getElementById("searchBtn");
+const sendBtn = document.getElementById("sendBtn");
+
+let currentUser = null;
+let currentChatUserId = null;
+let mediaRecorder = null;
+let audioChunks = [];
+
+/* التسجيل */
+registerBtn.onclick=async()=>{
+  const name=document.getElementById("name").value;
+  const email=document.getElementById("email").value;
+  const password=document.getElementById("password").value;
+  const photo=document.getElementById("profilePic").value || "https://via.placeholder.com/40";
+  try{
+    const userCred = await createUserWithEmailAndPassword(auth,email,password);
+    const user=userCred.user;
+    await setDoc(doc(db,"users",user.uid),{name,email,photo,lastActive:serverTimestamp()});
+    loginUser(user);
+  }catch(e){alert(e.message);}
+};
+
+/* تسجيل الدخول */
+loginBtn.onclick=async()=>{
+  const email=document.getElementById("email").value;
+  const password=document.getElementById("password").value;
+  try{
+    const userCred = await signInWithEmailAndPassword(auth,email,password);
+    loginUser(userCred.user);
+  }catch(e){alert(e.message);}
+};
+
+/* تسجيل الدخول وتحديث الحالة */
+function loginUser(user){
+  currentUser=user;
+  document.getElementById("loginDiv").style.display="none";
+  document.getElementById("chatDiv").style.display="flex";
+  document.getElementById("myPhoto").src="https://via.placeholder.com/40";
+  getDoc(doc(db,"users",user.uid)).then(snap=>{
+    if(snap.exists()){
+      const d=snap.data();
+      document.getElementById("myName").innerText=d.name;
+      document.getElementById("myPhoto").src=d.photo;
+    }
+  });
+  loadChats();
+  updateLastActive();
+}
+
+/* تحديث آخر ظهور */
+function updateLastActive(){
+  if(currentUser){
+    const userRef=doc(db,"users",currentUser.uid);
+    updateDoc(userRef,{lastActive:serverTimestamp()});
+  }
+  setTimeout(updateLastActive,10000);
+}
+
+/* نافذة البحث */
+searchBtn.onclick=()=>{document.getElementById("searchPopup").style.display="block";}
+function closeSearchPopup(){document.getElementById("searchPopup").style.display="none";}
+
+async function searchUser(){
+  const email=document.getElementById("searchEmail").value.trim();
+  if(!email)return;
+  document.getElementById("loadingSpinner").style.display="block";
+  const q=query(collection(db,"users"),where("email","==",email));
+  const snap=await getDocs(q);
+  const results=document.getElementById("popupResults");
+  results.innerHTML="";
+  snap.forEach(docSnap=>{
+    const d=docSnap.data();
+    const div=document.createElement("div");
+    div.className="user-card";
+    div.innerHTML=`<img src="${d.photo}"><b>${d.name}</b><br><button onclick="startChat('${docSnap.id}','${d.name}','${d.photo}')">دردشة</button>`;
+    results.appendChild(div);
+  });
+  document.getElementById("loadingSpinner").style.display="none";
+}
+
+/* بدء المحادثة */
+function startChat(uid,name,photo){
+  currentChatUserId=uid;
+  document.getElementById("conversationDiv").style.display="flex";
+  document.getElementById("chatDiv").style.display="none";
+  document.getElementById("chatUserName").innerText=name;
+  document.getElementById("chatUserPhoto").src=photo;
+  listenMessages();
+  updateChatHeaderStatus();
+  closeSearchPopup();
+}
+
+/* العودة للشاشة الرئيسية */
+function backToChat(){
+  currentChatUserId=null;
+  document.getElementById("conversationDiv").style.display="none";
+  document.getElementById("chatDiv").style.display="flex";
+  loadChats();
+}
+
+/* تحميل قائمة المحادثات مع عداد الرسائل */
+async function loadChats(){
+  const chatList=document.getElementById("chatList");
+  chatList.innerHTML="";
+  const snap=await getDocs(collection(db,"users"));
+  snap.forEach(async docSnap=>{
+    const d=docSnap.data();
+    if(docSnap.id!==currentUser.uid){
+      const unreadSnap=await getDocs(query(collection(db,"messages"),
+        where("from","==",docSnap.id),
+        where("to","==",currentUser.uid),
+        where("read","==",false)
+      ));
+      const unreadCount = unreadSnap.size;
+      const div=document.createElement("div");
+      div.className="chat-item";
+      div.innerHTML=`<img src="${d.photo}"><div class="info"><b>${d.name}</b><small>آخر ظهور: ${d.lastActive?.toDate ? d.lastActive.toDate().toLocaleTimeString() : "غير متاح"}</small></div>${unreadCount>0?'<span class="badge">'+unreadCount+'</span>':''}`;
+      div.onclick=()=>startChat(docSnap.id,d.name,d.photo);
+      chatList.appendChild(div);
+    }
+  });
+}
+
+/* المحادثة بالـ Real-time */
+function listenMessages(){
+  const messagesDiv=document.getElementById("messagesDiv");
+  const messagesRef=collection(db,"messages");
+  const q=query(messagesRef, orderBy("timestamp"));
+  onSnapshot(q, snapshot=>{
+    messagesDiv.innerHTML="";
+    snapshot.docs
+      .filter(docSnap=>{
+        const d=docSnap.data();
+        return (d.from===currentUser.uid && d.to===currentChatUserId) || (d.from===currentChatUserId && d.to===currentUser.uid);
+      })
+      .forEach(async docSnap=>{
+        const d=docSnap.data();
+        const div=document.createElement("div");
+        div.className="message "+(d.from===currentUser.uid?"sent":"received");
+        if(d.text) div.innerHTML=`<span>${d.text}</span><small>${d.timestamp?.seconds ? new Date(d.timestamp.seconds*1000).toLocaleTimeString() : ""} ${d.from===currentUser.uid ? (d.read?"✓✓":"✓") : ""}</small>`;
+        else if(d.audio) div.innerHTML=`<audio controls src="${d.audio}"></audio><small>${d.timestamp?.seconds ? new Date(d.timestamp.seconds*1000).toLocaleTimeString() : ""} ${d.from===currentUser.uid ? (d.read?"✓✓":"✓") : ""}</small>`;
+        messagesDiv.appendChild(div);
+        messagesDiv.scrollTop=messagesDiv.scrollHeight;
+
+        // تحديث الرسائل كمقروءة
+        if(d.to===currentUser.uid && !d.read){
+          await updateDoc(doc(db,"messages",docSnap.id),{read:true});
+          loadChats(); // تحديث عداد الرسائل
+        }
+      });
+  });
+}
+
+/* إرسال رسالة */
+sendBtn.onclick=sendMessage;
+async function sendMessage(){
+  if(!currentChatUserId) return;
+  const text=document.getElementById("messageInput").value.trim();
+  if(!text) return;
+  await addDoc(collection(db,"messages"),{
+    from: currentUser.uid,
+    to: currentChatUserId,
+    text:text,
+    read:false,
+    timestamp:serverTimestamp()
+  });
+  document.getElementById("messageInput").value="";
+}
+
+/* تسجيل صوت */
+const micBtn=document.getElementById("micBtn");
+micBtn.onclick = async ()=>{
+  if(!mediaRecorder || mediaRecorder.state==="inactive"){
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    mediaRecorder = new MediaRecorder(stream);
+    audioChunks = [];
+    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+    mediaRecorder.onstop = async ()=>{
+      const blob = new Blob(audioChunks,{type:"audio/webm"});
+      const audioRef = ref(storage,"audio/"+Date.now()+".webm");
+      await uploadBytes(audioRef, blob);
+      const url = await getDownloadURL(audioRef);
+      await addDoc(collection(db,"messages"), {
+        from: currentUser.uid,
+        to: currentChatUserId,
+        audio: url,
+        read:false,
+        timestamp: serverTimestamp()
+      });
+    };
+    mediaRecorder.start();
+  } else {
+    mediaRecorder.stop();
+  }
+}
+
+/* تعديل الملف الشخصي */
+function openProfilePopup(){
+  document.getElementById("profilePopup").style.display="block";
+  document.getElementById("newName").value=document.getElementById("myName").innerText;
+  document.getElementById("newPhoto").value=document.getElementById("myPhoto").src;
+}
+function closeProfilePopup(){document.getElementById("profilePopup").style.display="none";}
+async function saveProfile(){
+  const name=document.getElementById("newName").value;
+  const photo=document.getElementById("newPhoto").value;
+  document.getElementById("myName").innerText=name;
+  document.getElementById("myPhoto").src=photo;
+  await updateDoc(doc(db,"users",currentUser.uid),{name,photo,lastActive:serverTimestamp()});
+  closeProfilePopup();
+}
+
+/* حالة المستخدم */
+async function getUserStatus(uid){
+  const snap = await getDoc(doc(db,"users",uid));
+  if(snap.exists()){
+    const data = snap.data();
+    if(data.lastActive?.toDate){
+      const last = data.lastActive.toDate();
+      const now = new Date();
+      const diff = Math.floor((now-last)/1000);
+      if(diff < 60) return "نشط الآن";
+      else return "آخر ظهور: "+last.toLocaleTimeString();
+    }
+  }
+  return "غير متاح";
+}
+
+async function updateChatHeaderStatus(){
+  if(currentChatUserId){
+    const status=await getUserStatus(currentChatUserId);
+    document.getElementById("chatUserStatus").innerText=status;
+    setTimeout(updateChatHeaderStatus,10000);
+  }
+}
+</script>
+</body>
+</html>
