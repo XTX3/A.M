@@ -76,7 +76,6 @@ body{margin:0;font-family:sans-serif;background:#ece5dd;}
     </div>
     <div class="topbar-right">
       <button onclick="openProfilePopup()"><i class="fa fa-user"></i></button>
-      <button onclick="logout()"><i class="fa fa-sign-out-alt"></i></button>
       <button onclick="openSettings()"><i class="fa fa-ellipsis-v"></i></button>
     </div>
   </div>
@@ -124,10 +123,10 @@ body{margin:0;font-family:sans-serif;background:#ece5dd;}
 </div>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, collection, getDocs, updateDoc, query, where, serverTimestamp, addDoc, onSnapshot, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {getAuth,createUserWithEmailAndPassword,signInWithEmailAndPassword} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import {getFirestore,doc,setDoc,getDoc,collection,getDocs,updateDoc,query,where,serverTimestamp,addDoc,onSnapshot,orderBy} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import {getStorage,ref,uploadBytes,getDownloadURL} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDdPSV6OSPzqgdC5xWWfOCH2msTefFyoig",
@@ -144,6 +143,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
 
+/* المتغيرات */
 const registerBtn = document.getElementById("registerBtn");
 const loginBtn = document.getElementById("loginBtn");
 const searchBtn = document.getElementById("searchBtn");
@@ -154,43 +154,41 @@ let currentChatUserId = null;
 let mediaRecorder = null;
 let audioChunks = [];
 
-let usersUnsub = null;
-const unreadListeners = new Map();
-
-/* تسجيل حساب */
-registerBtn.onclick = async () => {
-  const name = document.getElementById("name").value;
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
-  const photo = document.getElementById("profilePic").value || "https://via.placeholder.com/40";
-  try {
-    const userCred = await createUserWithEmailAndPassword(auth, email, password);
-    const user = userCred.user;
-    await setDoc(doc(db, "users", user.uid), { name, email, photo, lastActive: serverTimestamp() });
+/* التسجيل */
+registerBtn.onclick=async()=>{
+  const name=document.getElementById("name").value;
+  const email=document.getElementById("email").value;
+  const password=document.getElementById("password").value;
+  const photo=document.getElementById("profilePic").value || "https://via.placeholder.com/40";
+  try{
+    const userCred = await createUserWithEmailAndPassword(auth,email,password);
+    const user=userCred.user;
+    await setDoc(doc(db,"users",user.uid),{name,email,photo,lastActive:serverTimestamp()});
     loginUser(user);
-  } catch (e) { alert(e.message); }
+  }catch(e){alert(e.message);}
 };
 
-/* تسجيل دخول */
-loginBtn.onclick = async () => {
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
-  try {
-    const userCred = await signInWithEmailAndPassword(auth, email, password);
+/* تسجيل الدخول */
+loginBtn.onclick=async()=>{
+  const email=document.getElementById("email").value;
+  const password=document.getElementById("password").value;
+  try{
+    const userCred = await signInWithEmailAndPassword(auth,email,password);
     loginUser(userCred.user);
-  } catch (e) { alert(e.message); }
+  }catch(e){alert(e.message);}
 };
 
 /* تسجيل الدخول وتحديث الحالة */
-function loginUser(user) {
-  currentUser = user;
-  document.getElementById("loginDiv").style.display = "none";
-  document.getElementById("chatDiv").style.display = "flex";
-  getDoc(doc(db, "users", user.uid)).then(snap => {
-    if (snap.exists()) {
-      const d = snap.data();
-      document.getElementById("myName").innerText = d.name;
-      document.getElementById("myPhoto").src = d.photo;
+function loginUser(user){
+  currentUser=user;
+  document.getElementById("loginDiv").style.display="none";
+  document.getElementById("chatDiv").style.display="flex";
+  document.getElementById("myPhoto").src="https://via.placeholder.com/40";
+  getDoc(doc(db,"users",user.uid)).then(snap=>{
+    if(snap.exists()){
+      const d=snap.data();
+      document.getElementById("myName").innerText=d.name;
+      document.getElementById("myPhoto").src=d.photo;
     }
   });
   loadChats();
@@ -198,210 +196,190 @@ function loginUser(user) {
 }
 
 /* تحديث آخر ظهور */
-function updateLastActive() {
-  if (currentUser) {
-    updateDoc(doc(db, "users", currentUser.uid), { lastActive: serverTimestamp() });
+function updateLastActive(){
+  if(currentUser){
+    const userRef=doc(db,"users",currentUser.uid);
+    updateDoc(userRef,{lastActive:serverTimestamp()});
   }
-  setTimeout(updateLastActive, 10000);
+  setTimeout(updateLastActive,10000);
 }
 
-/* البحث */
-searchBtn.onclick = () => { document.getElementById("searchPopup").style.display = "block"; }
-function closeSearchPopup() { document.getElementById("searchPopup").style.display = "none"; }
+/* نافذة البحث */
+searchBtn.onclick=()=>{document.getElementById("searchPopup").style.display="block";}
+function closeSearchPopup(){document.getElementById("searchPopup").style.display="none";}
 
-async function searchUser() {
-  const email = document.getElementById("searchEmail").value.trim();
-  if (!email) return;
-  document.getElementById("loadingSpinner").style.display = "block";
-  const q = query(collection(db, "users"), where("email", "==", email));
-  const snap = await getDocs(q);
-  const results = document.getElementById("popupResults");
-  results.innerHTML = "";
-  snap.forEach(docSnap => {
-    const d = docSnap.data();
-    const div = document.createElement("div");
-    div.className = "user-card";
-    div.innerHTML = `<img src="${d.photo}"><b>${d.name}</b><br><button onclick="startChat('${docSnap.id}','${d.name}','${d.photo}')">دردشة</button>`;
+async function searchUser(){
+  const email=document.getElementById("searchEmail").value.trim();
+  if(!email)return;
+  document.getElementById("loadingSpinner").style.display="block";
+  const q=query(collection(db,"users"),where("email","==",email));
+  const snap=await getDocs(q);
+  const results=document.getElementById("popupResults");
+  results.innerHTML="";
+  snap.forEach(docSnap=>{
+    const d=docSnap.data();
+    const div=document.createElement("div");
+    div.className="user-card";
+    div.innerHTML=`<img src="${d.photo}"><b>${d.name}</b><br><button onclick="startChat('${docSnap.id}','${d.name}','${d.photo}')">دردشة</button>`;
     results.appendChild(div);
   });
-  document.getElementById("loadingSpinner").style.display = "none";
+  document.getElementById("loadingSpinner").style.display="none";
 }
 
 /* بدء المحادثة */
-function startChat(uid, name, photo) {
-  currentChatUserId = uid;
-  document.getElementById("conversationDiv").style.display = "flex";
-  document.getElementById("chatDiv").style.display = "none";
-  document.getElementById("chatUserName").innerText = name;
-  document.getElementById("chatUserPhoto").src = photo;
+function startChat(uid,name,photo){
+  currentChatUserId=uid;
+  document.getElementById("conversationDiv").style.display="flex";
+  document.getElementById("chatDiv").style.display="none";
+  document.getElementById("chatUserName").innerText=name;
+  document.getElementById("chatUserPhoto").src=photo;
   listenMessages();
   updateChatHeaderStatus();
   closeSearchPopup();
 }
 
 /* العودة للشاشة الرئيسية */
-function backToChat() {
-  currentChatUserId = null;
-  document.getElementById("conversationDiv").style.display = "none";
-  document.getElementById("chatDiv").style.display = "flex";
+function backToChat(){
+  currentChatUserId=null;
+  document.getElementById("conversationDiv").style.display="none";
+  document.getElementById("chatDiv").style.display="flex";
   loadChats();
 }
 
-/* تحميل المحادثات مع عداد الرسائل */
-function loadChats() {
-  const chatList = document.getElementById("chatList");
-  if (usersUnsub) { usersUnsub(); usersUnsub = null; }
-  usersUnsub = onSnapshot(collection(db, "users"), snapshot => {
-    chatList.innerHTML = "";
-    const currentUserIds = new Set();
-    snapshot.forEach(docSnap => {
-      const d = docSnap.data();
-      const uid = docSnap.id;
-      if (uid === currentUser.uid) return;
-      currentUserIds.add(uid);
-      const div = document.createElement("div");
-      div.className = "chat-item";
-      div.setAttribute("data-id", uid);
-      const photo = d.photo || "https://via.placeholder.com/50";
-      const lastActiveText = d.lastActive?.toDate ? d.lastActive.toDate().toLocaleTimeString() : "غير متاح";
-      div.innerHTML = `<img src="${photo}"><div class="info"><b>${d.name || 'مستخدم'}</b><small>آخر ظهور: ${lastActiveText}</small></div><span class="badge" style="display:none"></span>`;
-      div.onclick = () => startChat(uid, d.name, d.photo);
+/* تحميل قائمة المحادثات مع عداد الرسائل */
+async function loadChats(){
+  const chatList=document.getElementById("chatList");
+  chatList.innerHTML="";
+  const snap=await getDocs(collection(db,"users"));
+  snap.forEach(async docSnap=>{
+    const d=docSnap.data();
+    if(docSnap.id!==currentUser.uid){
+      const unreadSnap=await getDocs(query(collection(db,"messages"),
+        where("from","==",docSnap.id),
+        where("to","==",currentUser.uid),
+        where("read","==",false)
+      ));
+      const unreadCount = unreadSnap.size;
+      const div=document.createElement("div");
+      div.className="chat-item";
+      div.innerHTML=`<img src="${d.photo}"><div class="info"><b>${d.name}</b><small>آخر ظهور: ${d.lastActive?.toDate ? d.lastActive.toDate().toLocaleTimeString() : "غير متاح"}</small></div>${unreadCount>0?'<span class="badge">'+unreadCount+'</span>':''}`;
+      div.onclick=()=>startChat(docSnap.id,d.name,d.photo);
       chatList.appendChild(div);
-      if (!unreadListeners.has(uid)) {
-        const unreadQuery = query(
-          collection(db, "messages"),
-          where("from", "==", uid),
-          where("to", "==", currentUser.uid),
-          where("read", "==", false)
-        );
-        const unsub = onSnapshot(unreadQuery, unreadSnap => {
-          const badgeEl = chatList.querySelector(`.chat-item[data-id="${uid}"] .badge`);
-          const count = unreadSnap.size;
-          if (badgeEl) {
-            if (count > 0) { badgeEl.style.display = "flex"; badgeEl.textContent = count; }
-            else { badgeEl.style.display = "none"; }
-          }
-        });
-        unreadListeners.set(uid, unsub);
-      }
-    });
-    for (const [uid, unsub] of unreadListeners.entries()) {
-      if (!currentUserIds.has(uid)) {
-        try { unsub(); } catch (e) { }
-        unreadListeners.delete(uid);
-      }
     }
   });
 }
 
 /* المحادثة بالـ Real-time */
-function listenMessages() {
-  const messagesDiv = document.getElementById("messagesDiv");
-  const messagesRef = collection(db, "messages");
-  const q = query(messagesRef, orderBy("timestamp"));
-  onSnapshot(q, snapshot => {
-    messagesDiv.innerHTML = "";
+function listenMessages(){
+  const messagesDiv=document.getElementById("messagesDiv");
+  const messagesRef=collection(db,"messages");
+  const q=query(messagesRef, orderBy("timestamp"));
+  onSnapshot(q, snapshot=>{
+    messagesDiv.innerHTML="";
     snapshot.docs
-      .filter(docSnap => {
-        const d = docSnap.data();
-        return (d.from === currentUser.uid && d.to === currentChatUserId) || (d.from === currentChatUserId && d.to === currentUser.uid);
+      .filter(docSnap=>{
+        const d=docSnap.data();
+        return (d.from===currentUser.uid && d.to===currentChatUserId) || (d.from===currentChatUserId && d.to===currentUser.uid);
       })
-      .forEach(async docSnap => {
-        const d = docSnap.data();
-        const div = document.createElement("div");
-        div.className = "message " + (d.from === currentUser.uid ? "sent" : "received");
-        if (d.text) div.innerHTML = `<span>${d.text}</span><small>${d.timestamp?.seconds ? new Date(d.timestamp.seconds * 1000).toLocaleTimeString() : ""} ${d.from === currentUser.uid ? (d.read ? "✓✓" : "✓") : ""}</small>`;
-        else if (d.audio) div.innerHTML = `<audio controls src="${d.audio}"></audio><small>${d.timestamp?.seconds ? new Date(d.timestamp.seconds * 1000).toLocaleTimeString() : ""} ${d.from === currentUser.uid ? (d.read ? "✓✓" : "✓") : ""}</small>`;
+      .forEach(async docSnap=>{
+        const d=docSnap.data();
+        const div=document.createElement("div");
+        div.className="message "+(d.from===currentUser.uid?"sent":"received");
+        if(d.text) div.innerHTML=`<span>${d.text}</span><small>${d.timestamp?.seconds ? new Date(d.timestamp.seconds*1000).toLocaleTimeString() : ""} ${d.from===currentUser.uid ? (d.read?"✓✓":"✓") : ""}</small>`;
+        else if(d.audio) div.innerHTML=`<audio controls src="${d.audio}"></audio><small>${d.timestamp?.seconds ? new Date(d.timestamp.seconds*1000).toLocaleTimeString() : ""} ${d.from===currentUser.uid ? (d.read?"✓✓":"✓") : ""}</small>`;
         messagesDiv.appendChild(div);
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        messagesDiv.scrollTop=messagesDiv.scrollHeight;
 
-        if (d.to === currentUser.uid && !d.read) {
-          try { await updateDoc(doc(db, "messages", docSnap.id), { read: true }); } catch (e) { console.log(e); }
+        // تحديث الرسائل كمقروءة
+        if(d.to===currentUser.uid && !d.read){
+          await updateDoc(doc(db,"messages",docSnap.id),{read:true});
+          loadChats(); // تحديث عداد الرسائل
         }
       });
   });
 }
 
-/* إرسال رسالة نصية */
-sendBtn.onclick = async () => {
-  const input = document.getElementById("messageInput");
-  const text = input.value.trim();
-  if (!text) return;
-  input.value = "";
-  await addDoc(collection(db, "messages"), {
+/* إرسال رسالة */
+sendBtn.onclick=sendMessage;
+async function sendMessage(){
+  if(!currentChatUserId) return;
+  const text=document.getElementById("messageInput").value.trim();
+  if(!text) return;
+  await addDoc(collection(db,"messages"),{
     from: currentUser.uid,
     to: currentChatUserId,
-    text,
-    read: false,
-    timestamp: serverTimestamp()
+    text:text,
+    read:false,
+    timestamp:serverTimestamp()
   });
-};
+  document.getElementById("messageInput").value="";
+}
 
-/* تسجيل الصوت وإرساله مباشرة */
-const micBtn = document.getElementById("micBtn");
-micBtn.onclick = async () => {
-  if (!mediaRecorder || mediaRecorder.state === "inactive") {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+/* تسجيل صوت */
+const micBtn=document.getElementById("micBtn");
+micBtn.onclick = async ()=>{
+  if(!mediaRecorder || mediaRecorder.state==="inactive"){
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
     mediaRecorder = new MediaRecorder(stream);
     audioChunks = [];
-
     mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-
-    mediaRecorder.onstop = async () => {
-      const blob = new Blob(audioChunks, { type: "audio/webm" });
-      const audioRef = ref(storage, "audio/" + Date.now() + ".webm");
+    mediaRecorder.onstop = async ()=>{
+      const blob = new Blob(audioChunks,{type:"audio/webm"});
+      const audioRef = ref(storage,"audio/"+Date.now()+".webm");
       await uploadBytes(audioRef, blob);
       const url = await getDownloadURL(audioRef);
-
-      await addDoc(collection(db, "messages"), {
+      await addDoc(collection(db,"messages"), {
         from: currentUser.uid,
         to: currentChatUserId,
         audio: url,
-        read: false,
+        read:false,
         timestamp: serverTimestamp()
       });
-
-      // تحديث الرسائل فوراً
-      const messagesDiv = document.getElementById("messagesDiv");
-      const div = document.createElement("div");
-      div.className = "message sent";
-      div.innerHTML = `<audio controls src="${url}"></audio><small>${new Date().toLocaleTimeString()} ✓</small>`;
-      messagesDiv.appendChild(div);
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
     };
-
     mediaRecorder.start();
   } else {
     mediaRecorder.stop();
   }
-};
+}
 
-/* الملف الشخصي */
-function openProfilePopup() { document.getElementById("profilePopup").style.display = "block"; }
-function closeProfilePopup() { document.getElementById("profilePopup").style.display = "none"; }
-async function saveProfile() {
-  const newName = document.getElementById("newName").value;
-  const newPhoto = document.getElementById("newPhoto").value;
-  const updates = {};
-  if (newName) updates.name = newName;
-  if (newPhoto) updates.photo = newPhoto;
-  try { await updateDoc(doc(db, "users", currentUser.uid), updates); } catch (e) { console.log(e); }
+/* تعديل الملف الشخصي */
+function openProfilePopup(){
+  document.getElementById("profilePopup").style.display="block";
+  document.getElementById("newName").value=document.getElementById("myName").innerText;
+  document.getElementById("newPhoto").value=document.getElementById("myPhoto").src;
+}
+function closeProfilePopup(){document.getElementById("profilePopup").style.display="none";}
+async function saveProfile(){
+  const name=document.getElementById("newName").value;
+  const photo=document.getElementById("newPhoto").value;
+  document.getElementById("myName").innerText=name;
+  document.getElementById("myPhoto").src=photo;
+  await updateDoc(doc(db,"users",currentUser.uid),{name,photo,lastActive:serverTimestamp()});
   closeProfilePopup();
-  if (updates.name) document.getElementById("myName").innerText = updates.name;
-  if (updates.photo) document.getElementById("myPhoto").src = updates.photo;
 }
 
-/* تسجيل الخروج */
-function logout() {
-  signOut(auth).then(() => {
-    location.reload(); // إعادة التوجيه للشاشة الرئيسية
-  }).catch(e => console.log(e));
+/* حالة المستخدم */
+async function getUserStatus(uid){
+  const snap = await getDoc(doc(db,"users",uid));
+  if(snap.exists()){
+    const data = snap.data();
+    if(data.lastActive?.toDate){
+      const last = data.lastActive.toDate();
+      const now = new Date();
+      const diff = Math.floor((now-last)/1000);
+      if(diff < 60) return "نشط الآن";
+      else return "آخر ظهور: "+last.toLocaleTimeString();
+    }
+  }
+  return "غير متاح";
 }
 
-/* تحديث حالة المستخدم في المحادثة */
-function updateChatHeaderStatus() {
-  const statusEl = document.getElementById("chatUserStatus");
-  statusEl.innerText = "نشط الآن";
+async function updateChatHeaderStatus(){
+  if(currentChatUserId){
+    const status=await getUserStatus(currentChatUserId);
+    document.getElementById("chatUserStatus").innerText=status;
+    setTimeout(updateChatHeaderStatus,10000);
+  }
 }
 </script>
 </body>
